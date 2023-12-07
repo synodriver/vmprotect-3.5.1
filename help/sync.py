@@ -18,11 +18,11 @@ def find_children(all, root_id):
 	children = []
 	prev = [root_id]
 	current = []
-	while len(prev) > 0:
+	while prev:
 		for p in all:
-			this_id = int(p['page_id'])
 			parent_id = int(p['page_parent_id'])
 			if prev.count(parent_id) > 0:
+				this_id = int(p['page_id'])
 				current.append(this_id)
 		children.extend(prev)
 		prev = current
@@ -39,7 +39,7 @@ def delete_pages(blog, pages):
 		except pyblog.BlogError as text:
 			print ("warning while attempting to delete the page %d: %s" % (p, text))
 		except xml.parsers.expat.ExpatError as text:
-			print ("xerror: %s" % (text))
+			print(f"xerror: {text}")
 
 ##########################################################################################
 # create new pages
@@ -50,7 +50,7 @@ def load_structure():
 
 def get_good_image_link(link):
 	parts = link.split('/')
-	return "/usermanual/" + parts[len(parts) - 1]
+	return f"/usermanual/{parts[len(parts) - 1]}"
 
 def remove_newlines(text):
 	lines = text.splitlines()
@@ -70,8 +70,7 @@ def remove_newlines(text):
 			if line != "":
 				nlines.append(line)
 				line = ""
-			nlines.append("")
-			nlines.append(l)
+			nlines.extend(("", l))
 			in_pre = True
 			continue
 
@@ -82,12 +81,12 @@ def remove_newlines(text):
 			continue
 
 		if line != "":
-			line = line + " "
+			line = f"{line} "
 		line = line + l
 
 	if line != "":
 		nlines.append(line)
-	
+
 	return "\n".join(nlines)
 
 
@@ -111,14 +110,12 @@ def load_single_page(p):
 	print ("\nprocessing page %s" % (p['file']))
 	content = codecs.open(os.path.join(SRC_PATH, p['file']), 'r', 'utf-8').read()
 	title = p['title']
-	m_title = re.search('<title>(.*)</title>', content, re.M + re.DOTALL)
-	if m_title: 
+	if m_title := re.search('<title>(.*)</title>', content, re.M + re.DOTALL):
 		title = m_title.group(1)
 		title = title.replace('&quot;', '"')
 		p['title'] = title
 
-	m_content = re.search('<body>(.*)</body>', content, re.M + re.DOTALL)
-	if m_content:
+	if m_content := re.search('<body>(.*)</body>', content, re.M + re.DOTALL):
 		content = m_content.group(1)
 	else:
 		content = "not found"
@@ -134,21 +131,21 @@ def load_pages_content(pages):
 
 def print_pages_content(pages):
 	for p in pages:
-		print ("file %s" % (p['file']))
+		print(f"file {p['file']}")
 		print ("page %s, title = %s, content:\n%s\n\n" % (p['file'], p['title'], repr(p['content'])))
 		if 'children' in p:
 			print_pages_content(p['children'])
 
 
 def create_single_page(blog, title, content, parent, order):
-	print ("creating page: %s" % (title))
+	print(f"creating page: {title}")
 	try:
 		query = {'wp_page_parent_id': parent, 'title': title, 'description': content, 'mt_allow_comments': 0, 'mt_allow_pings': 0, 'publish': 1, 'wp_page_order': order}
 		return blog.new_page(query)
 	except pyblog.BlogError as text:
-		print ("error: %s" % (text))
+		print(f"error: {text}")
 	except xml.parsers.expat.ExpatError as text:
-		print ("xerror: %s" % (text))
+		print(f"xerror: {text}")
 
 def create_new_pages(blog, root, pages):
 	cnt = 0
@@ -166,14 +163,14 @@ def create_new_pages(blog, root, pages):
 		cnt = cnt + 1
 
 def update_single_page(blog, page):
-	print ("updating page %s" % (page['title']))
+	print(f"updating page {page['title']}")
 	try:
 		query = {'title': page['title'], 'description': page['content']}
 		blog.edit_page(page['id'], query)
 	except pyblog.BlogError as text:
-		print ("error: %s" % (text))
+		print(f"error: {text}")
 	except xml.parsers.expat.ExpatError as text:
-		print ("xerror: %s" % (text))
+		print(f"xerror: {text}")
 
 def update_pages(blog, pages):
 	for p in pages:
@@ -186,8 +183,8 @@ def find_page_in_all_exact(fname, all_pages):
 	for p in all_pages:
 		if fname == p['file']: return p['link']
 		if 'children' in p:
-			res = find_page_in_all_exact(fname, p['children'])
-			if res: return res
+			if res := find_page_in_all_exact(fname, p['children']):
+				return res
 	return None
 
 def find_page_in_all_by_name(fname, all_pages):
@@ -195,8 +192,8 @@ def find_page_in_all_by_name(fname, all_pages):
 		if os.path.basename(fname) == os.path.basename(p['file']):
 			return p['link']
 		if 'children' in p:
-			res = find_page_in_all_by_name(fname, p['children'])
-			if res: return res
+			if res := find_page_in_all_by_name(fname, p['children']):
+				return res
 	return None
 
 def find_target(fname, link, all_new_pages):
@@ -204,12 +201,10 @@ def find_target(fname, link, all_new_pages):
 	tgt = os.path.join(dir, link)
 	tgt = os.path.normpath(tgt)
 	tgt = tgt.replace('\\', '/')
-	good_tgt = find_page_in_all_exact(tgt, all_new_pages)
-	if good_tgt:
+	if good_tgt := find_page_in_all_exact(tgt, all_new_pages):
 		return good_tgt
 
-	good_tgt = find_page_in_all_by_name(tgt, all_new_pages)
-	if good_tgt:
+	if good_tgt := find_page_in_all_by_name(tgt, all_new_pages):
 		return good_tgt
 	else:
 		return "--- unknown link ---"
@@ -234,7 +229,7 @@ def process_links(pages, all_new_pages):
 def get_list_of_pages(pages):
 	list = "\n<ul class=toc>\n"
 	for p in pages:
-		list = list + '<li><a href="' + p['link'] + '">' + p['title'] + '</a></li>\n'
+		list = f'{list}<li><a href="' + p['link'] + '">' + p['title'] + '</a></li>\n'
 		if 'children' in p:
 			list = list + get_list_of_pages(p['children'])
 	return list + "</ul>\n"
@@ -250,13 +245,13 @@ def update_main_page(blog, id, pages):
 		<style> ul.toc li { margin-left: 2em; } #content>ul { padding-left: 0; } </style>
 		
 		'''
-	list = list + get_list_of_pages(pages)
+	list += get_list_of_pages(pages)
 
 	try:
 		query = {'description': list}
 		blog.edit_page(id, query)
 	except pyblog.BlogError as text:
-		print ("error: %s" % (text))
+		print(f"error: {text}")
 
 
 
