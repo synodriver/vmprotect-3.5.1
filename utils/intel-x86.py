@@ -13,17 +13,17 @@ def replace_ptr(matchobj):
 	s1 = matchobj.group()
 	pos = s1.rfind(' ')
 	assert pos != -1
-	return s1[0:pos] + ' [' + s1[pos+1:] + ']'
+	return f'{s1[:pos]} [{s1[pos + 1:]}]'
 
 def replace_ptr2(matchobj):
 	s1 = matchobj.group()
 	pos = s1.rfind(':')
 	assert pos != -1
-	return s1[0:pos+1] + '[' + s1[pos+1:] + ']'
+	return f'{s1[:pos + 1]}[{s1[pos + 1:]}]'
 
 def replace_hex(matchobj):
 	nstr = matchobj.group()
-	assert not (nstr in ['ah', 'bh', 'ch', 'dh'])
+	assert nstr not in ['ah', 'bh', 'ch', 'dh']
 	nstr = nstr.replace('h', '')
 	return nstr
 
@@ -34,12 +34,11 @@ def repl(matchobj):
 	pos2 = s2.find(']')
 	if pos1 == -1 or pos2 == -1:
 		return s1
-	nstr = s2[0:pos1]
+	nstr = s2[:pos1]
 	nstr = nstr.replace('h', '')
 	num = int(nstr, 16)
 	hex = "%08x" % num
-	s3 = s2[pos1:pos2] + '+' + hex + ']'
-	return s3
+	return f'{s2[pos1:pos2]}+{hex}]'
 
 p_seg  = re.compile(r'(es:|ds:|cs:|fs:|gs:|ss:)')
 p_seg_abs = re.compile(r'(es:|ds:|cs:|fs:|gs:|ss:)[0-9][0-9a-fA-F]*h')
@@ -61,14 +60,14 @@ def is_invalid_insn(insn_binary):
 	k = 0
 	while True:
 		b = ord(insn_binary[k])
-		if not(b == 0x26 or b == 0x2e or b == 0x36 or b == 0x3e or b == 0x64 or b == 0x65):
+		if b not in {0x26, 0x2E, 0x36, 0x3E, 0x64, 0x65}:
 			break
 		k += 1
 	if k >= len(insn_binary) - 1:
 		return True
 	b = ord(insn_binary[k])
 	b2 = ord(insn_binary[k + 1])
-	if b == 0x0f and (b2 == 0x19 or b2 == 0x24 or b2 == 0x26 or b2 == 0xa6 or b2 == 0xa7):
+	if b == 0x0F and b2 in {0x19, 0x24, 0x26, 0xA6, 0xA7}:
 		return True
 	if b == 0xcd and b2 == 0x20: #vxdcall
 		return True
@@ -91,47 +90,39 @@ def misc_replacements(opcode_str):
 def remove_ds_prefix(insn_binary, rest_str):
 	pos = insn_binary.find('\x3e')
 	# No prefix - remove ds:
-	if -1 == pos:
-		return -1 != rest_str.find('ds:')
+	if pos == -1:
+		return rest_str.find('ds:') != -1
 	if pos == 0:
 		return True
-	ds_prefix = True
-	for i in range(0, pos):
-		if not (ord(insn_binary[i]) in [0x66, 0x67, 0xF0, 0xF2, 0xF3]):
-			ds_prefix = False
-			break
-	if ds_prefix:
-		return True
-	else:
-		# No prefix - remove ds
-		return -1 != rest_str.find('ds:')
+	ds_prefix = all(
+		ord(insn_binary[i]) in {0x66, 0x67, 0xF0, 0xF2, 0xF3}
+		for i in range(0, pos)
+	)
+	return True if ds_prefix else rest_str.find('ds:') != -1
 
 def replace_ds_seg(matchobj):
 	nstr = matchobj.group()
-	if nstr[0:2].lower() == 'ds':
-		return '[' + nstr[3:] + ']'
+	if nstr[:2].lower() == 'ds':
+		return f'[{nstr[3:]}]'
 	else:
-		return nstr[0:3] + '[' + nstr[3:] + ']'
+		return f'{nstr[:3]}[{nstr[3:]}]'
 
 def replace_seg(matchobj):
 	nstr = matchobj.group()
-	if nstr[0:2].lower() == 'ds':
-		return '[' + nstr[3:] + ']'
+	if nstr[:2].lower() == 'ds':
+		return f'[{nstr[3:]}]'
 	else:
-		return nstr[0:3] + '[' + nstr[3:] + ']'
+		return f'{nstr[:3]}[{nstr[3:]}]'
 
 def replace_lea_seg(matchobj):
 	nstr = matchobj.group()
-	return '[' + nstr[3:] + ']'
+	return f'[{nstr[3:]}]'
 
 def replace_segments(insn_binary, opcode_str, rest_str):
 	# Remove segments from LEA (for absolute and relative offsets)
 	if opcode_str.lower() == 'lea':
 		tmp = p_seg_abs.sub(replace_lea_seg, rest_str)
-		if tmp == rest_str:
-			return p_seg.sub('', rest_str)
-		else:
-			return tmp
+		return p_seg.sub('', rest_str) if tmp == rest_str else tmp
 	# Now search for ?s:01020304, replace to ?s:[01020304] except of ds: -> [01020304]
 	if remove_ds_prefix(insn_binary, rest_str):
 		return p_seg_abs.sub(replace_ds_seg, rest_str)
@@ -146,7 +137,7 @@ def ida_disasm_fix(insn_binary, insn_str):
 	pos = insn_str.find(' ')
 	if pos == -1:
 		return misc_replacements(insn_str) # This is opcode like 'cli'
-	opcode_str = insn_str[0:pos]
+	opcode_str = insn_str[:pos]
 	rest_str = insn_str[pos+1:]
 	# remove 'small'
 	rest_str = rest_str.replace('small ', '')
@@ -166,23 +157,20 @@ def ida_disasm_fix(insn_binary, insn_str):
 	# Transform 'call far ptr 1817:16151413' -> 'call 1817:16151413'
 	rest_str = p_farptr.sub(replace_farptr, rest_str)
 	opcode_str = misc_replacements(opcode_str)
-	return opcode_str + ' ' + rest_str
+	return f'{opcode_str} {rest_str}'
 
 def get_insn(ea, len):
-	s = ''
-	for i in range(0, len):
-		s += chr(Byte(ea + i))
-	return s
+	return ''.join(chr(Byte(ea + i)) for i in range(0, len))
 
 def insn_write(f, insn_binary, insn_str, header):
 	assert len(insn_binary) != 0
 	s = ''
-	sz = len(insn_binary)
 	if header:
+		sz = len(insn_binary)
 		s += '{%d, "' % sz
 		for i in range(0, sz):
 			s += '\\x%02x' % ord(insn_binary[i])
-		s += '", "' + insn_str + '"},\n'
+		s += f'", "{insn_str}' + '"},\n'
 	else:
 		s += binascii.hexlify(insn_binary)
 		s += (' %s\n' % insn_str)
@@ -191,14 +179,11 @@ def insn_write(f, insn_binary, insn_str, header):
 
 # Normalize operand (replace numeric operands with -1)
 def normalize_operand(op_type, op_str):
-	if op_type in [o_mem, o_displ, o_imm, o_near, o_far]:
-		return "-1"
-	else:
-		return op_str
+	return "-1" if op_type in [o_mem, o_displ, o_imm, o_near, o_far] else op_str
 
 def is_unique(set, ea, insn_str, mnem):
 	# Consider undisassemblable opcodes as unique
-	if insn_str[0:2].lower() == 'db':
+	if insn_str[:2].lower() == 'db':
 		return True
 	ot1 = GetOpType(ea, 0)
 	ot2 = GetOpType(ea, 1)
@@ -206,15 +191,11 @@ def is_unique(set, ea, insn_str, mnem):
 	v1 = GetOpnd(ea, 0)
 	v2 = GetOpnd(ea, 1)
 	v3 = GetOpnd(ea, 2)
-	hashstr = "%s|%s|%s|%s" % (mnem, 
-			normalize_operand(ot1, v1),
-			normalize_operand(ot2, v2),
-			normalize_operand(ot3, v3))
+	hashstr = f"{mnem}|{normalize_operand(ot1, v1)}|{normalize_operand(ot2, v2)}|{normalize_operand(ot3, v3)}"
 	if hashstr in set:
 		return False
-	else:
-		set.add(hashstr)
-		return True
+	set.add(hashstr)
+	return True
 
 def generate_x86(filename):
 	set = Set()

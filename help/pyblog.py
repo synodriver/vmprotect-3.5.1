@@ -84,7 +84,7 @@ class Blog(object):
            methodname = XML-RPC methodname.
            args = Arguments to the call. 
         """
-        if not methodname in self.methods:
+        if methodname not in self.methods:
             raise BlogError(BlogError.METHOD_NOT_SUPPORTED)
 
         try:
@@ -96,10 +96,7 @@ class Blog(object):
         
     def is_method_available(self, methodname):
         """Returns if a method is supported by the XML-RPC server"""
-        if methodname in self.methods:
-            return True
-        else:
-            return False
+        return methodname in self.methods
 
 class Blogger(Blog):
     """

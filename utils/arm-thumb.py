@@ -14,20 +14,17 @@ def ida_disasm_fix(insn_binary, insn_str):
 	return insn_str
 
 def get_insn(ea, sz):
-	s = ''
-	for i in range(0, sz):
-		s += chr(Byte(ea + i))
-	return s
+	return ''.join(chr(Byte(ea + i)) for i in range(0, sz))
 
 def insn_write(f, insn_binary, insn_str, header):
 	assert len(insn_binary) != 0
 	s = ''
-	sz = len(insn_binary)
 	if header:
+		sz = len(insn_binary)
 		s += '{%d, "' % sz
 		for i in range(0, sz):
 			s += '\\x%02x' % ord(insn_binary[i])
-		s += '", "' + insn_str + '"},\n'
+		s += f'", "{insn_str}' + '"},\n'
 	else:
 		s += binascii.hexlify(insn_binary)
 		s += (' %s\n' % insn_str)
@@ -36,10 +33,7 @@ def insn_write(f, insn_binary, insn_str, header):
 
 # Normalize operand (replace numeric operands with -1)
 def normalize_operand(op_type, op_str):
-	if op_type in [o_mem, o_displ, o_imm, o_near, o_far]:
-		return "-1"
-	else:
-		return op_str
+	return "-1" if op_type in [o_mem, o_displ, o_imm, o_near, o_far] else op_str
 
 def is_unique(set, ea):
 	ot1 = GetOpType(ea, 0)
@@ -49,15 +43,11 @@ def is_unique(set, ea):
 	v2 = GetOpnd(ea, 1)
 	v3 = GetOpnd(ea, 2)
 	mnem = GetMnem(ea)
-	hashstr = "%s|%s|%s|%s" % (mnem, 
-			normalize_operand(ot1, v1),
-			normalize_operand(ot2, v2),
-			normalize_operand(ot3, v3))
+	hashstr = f"{mnem}|{normalize_operand(ot1, v1)}|{normalize_operand(ot2, v2)}|{normalize_operand(ot3, v3)}"
 	if hashstr in set:
 		return False
-	else:
-		set.add(hashstr)
-		return True
+	set.add(hashstr)
+	return True
 
 def iteration(f, set, ea, n, data, prev_mnem):
 	PatchDword(ea, data)

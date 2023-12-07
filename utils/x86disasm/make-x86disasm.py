@@ -14,23 +14,23 @@ def do_clean():
 	fileop.clean_dir(".", ".ilk")
 	fileop.clean_dir(".", ".exe")
 	fileop.remove_file(os.path.join(bin_dir, name))
-	fileop.remove_file(os.path.join(bin_dir, name + '.exe'))
-	fileop.remove_file(os.path.join(bin_dir, name + '.pdb'))
-	fileop.remove_file(os.path.join(bin_dir, name + '.ilk'))
+	fileop.remove_file(os.path.join(bin_dir, f'{name}.exe'))
+	fileop.remove_file(os.path.join(bin_dir, f'{name}.pdb'))
+	fileop.remove_file(os.path.join(bin_dir, f'{name}.ilk'))
 	return 0
 
 def make(clean, release, x64):
 	if clean:
 		do_clean()
 	result = os.system("scons -f Sconstruct-%s release=%d clean=%d amd64=%d" % (name, release, clean, x64))
-	if 0 == result:
+	if result == 0:
     	# Scons does not put file in the required directory. Do it ourselves.
 		if utils.get_platform() == 'windows':
-			os.system("move " + name + ".exe " + bin_dir)
-			os.system("move " + name + ".pdb " + bin_dir)
-			os.system("move " + name + ".ilk " + bin_dir)
+			os.system(f"move {name}.exe {bin_dir}")
+			os.system(f"move {name}.pdb {bin_dir}")
+			os.system(f"move {name}.ilk {bin_dir}")
 		else:
-			os.system("mv " + name + " " + bin_dir)
+			os.system(f"mv {name} {bin_dir}")
 	return result
 
 def title(clean, release, x64):
